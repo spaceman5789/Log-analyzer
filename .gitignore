@@ -1,0 +1,7 @@
+git clone git@github.com:spaceman5789/log-analyzer.git
+cd log-analyzer
+python3 -m venv .venv
+source .venv/bin/activate
+pip install pytest
+mkdir -p src/log_analyzer tests/fixtures
+touch src/log_analyzer/__init__.py
