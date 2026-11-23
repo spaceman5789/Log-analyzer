@@ -1,7 +1,7 @@
-# systemd-юнит: log-analyzer watch как сервис.
-# Установка:
+# systemd unit: log-analyzer watch as a service.
+# Installation:
 #   sudo useradd --system --no-create-home --shell /usr/sbin/nologin log-analyzer
-#   sudo pip install .            # или pipx install .
+#   sudo pip install .            # or pipx install .
 #   sudo mkdir -p /etc/log-analyzer
 #   sudo cp config.example.yaml /etc/log-analyzer/config.yaml
 #   sudo install -m 600 -o log-analyzer .env /etc/log-analyzer/env   # TG_BOT_TOKEN / TG_CHAT_ID
@@ -16,16 +16,16 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=log-analyzer
-# adm — чтение /var/log/auth.log; systemd-journal — для режима --journal
+# adm: read /var/log/auth.log; systemd-journal: for --journal mode
 SupplementaryGroups=adm systemd-journal
 EnvironmentFile=/etc/log-analyzer/env
 ExecStart=/usr/local/bin/log-analyzer watch /var/log/auth.log \
     --config /etc/log-analyzer/config.yaml --telegram --no-color
-# RHEL/Rocky: /var/log/secure; только journald: замените путь на --journal
+# RHEL/Rocky: /var/log/secure; journald only: replace the path with --journal
 Restart=on-failure
 RestartSec=5
 
-# Хардненинг: процессу нужно только читать логи и ходить в api.telegram.org
+# Hardening: the process only needs to read logs and reach api.telegram.org
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

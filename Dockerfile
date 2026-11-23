@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-# --- сборка wheel -----------------------------------------------------------
+# --- build wheel ------------------------------------------------------------
 FROM python:3.12-slim AS build
 WORKDIR /src
 COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip wheel --no-cache-dir --wheel-dir /wheels .
 
-# --- рантайм: минимальный образ, без компиляторов, non-root -----------------
+# --- runtime: minimal image, no compilers, non-root -----------------------
 FROM python:3.12-slim
 LABEL org.opencontainers.image.title="log-analyzer" \
       org.opencontainers.image.description="SSH brute force detector for auth.log / journald" \
@@ -24,7 +24,7 @@ WORKDIR /work
 ENTRYPOINT ["log-analyzer"]
 CMD ["--help"]
 
-# Пример (auth.log читаем только на чтение; gid 4 = adm на Debian/Ubuntu):
+# Example (auth.log mounted read-only; gid 4 = adm on Debian/Ubuntu):
 #   docker build -t log-analyzer .
 #   docker run --rm --read-only --cap-drop ALL --group-add 4 \
 #     -v /var/log/auth.log:/logs/auth.log:ro log-analyzer analyze /logs/auth.log

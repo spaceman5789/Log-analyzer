@@ -22,7 +22,7 @@ def fixture_path():
 
 @pytest.fixture
 def load():
-    """Разобрать фикстуру с фиксированным годом, чтобы тесты не зависели от текущей даты."""
+    """Parse a fixture with a fixed year so tests don't depend on the current date."""
 
     def _load(name: str):
         return parse_file(str(FIXTURES / name), year=2026)

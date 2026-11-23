@@ -1,4 +1,4 @@
-"""Модели данных: событие из лога, алерт, уровень критичности, MITRE ATT&CK."""
+"""Data models: log event, alert, severity level, MITRE ATT&CK."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ from typing import Any
 
 
 class EventType(Enum):
-    FAILED = "failed"  # неверный пароль
-    INVALID_USER = "invalid_user"  # такого пользователя нет
-    ACCEPTED = "accepted"  # успешный вход
-    PREAUTH_CLOSE = "preauth_close"  # соединение оборвано до аутентификации (часто сканеры)
+    FAILED = "failed"  # wrong password
+    INVALID_USER = "invalid_user"  # no such user
+    ACCEPTED = "accepted"  # successful login
+    PREAUTH_CLOSE = "preauth_close"  # connection closed before authentication (often scanners)
 
 
 @dataclass
@@ -25,15 +25,15 @@ class Event:
     user: str
     port: int | None = None
     method: str | None = None  # password / publickey / keyboard-interactive/pam
-    host: str | None = None  # имя сервера из строки лога (где это случилось)
+    host: str | None = None  # server name from the log line (where it happened)
 
 
 @total_ordering
 class Severity(Enum):
-    LOW = 1  # сканер, фоновый шум интернета
-    MEDIUM = 2  # брутфорс / spraying
-    HIGH = 3  # брутфорс по root, распределённая атака
-    CRITICAL = 4  # успешный вход после брутфорса
+    LOW = 1  # scanner, internet background noise
+    MEDIUM = 2  # brute force / spraying
+    HIGH = 3  # brute force on root, distributed attack
+    CRITICAL = 4  # successful login after brute force
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, Severity):
@@ -48,10 +48,10 @@ class Severity(Enum):
             return cls[str(value).strip().upper()]
         except KeyError:
             names = ", ".join(s.name for s in cls)
-            raise ValueError(f"неизвестный severity {value!r}, допустимо: {names}") from None
+            raise ValueError(f"unknown severity {value!r}, allowed: {names}") from None
 
 
-# Справочник техник MITRE ATT&CK, на которые маппятся правила
+# MITRE ATT&CK techniques the rules map to
 MITRE = {
     "T1110": "Brute Force",
     "T1110.001": "Password Guessing",
@@ -67,23 +67,23 @@ class Alert:
     rule: str  # bruteforce / success_after_fail / spraying / distributed / scan
     severity: Severity
     title: str
-    key: str  # по чему дедуплицируем: IP или (для distributed) логин
+    key: str  # deduplication key: IP or (for distributed) username
     first_seen: datetime
     last_seen: datetime
     count: int = 0
     ip: str | None = None
     host: str | None = None
-    compromised_user: str | None = None  # для success_after_fail: под кем вошли
+    compromised_user: str | None = None  # for success_after_fail: the account used
     users: Counter[str] = field(default_factory=Counter)
     ips: Counter[str] = field(default_factory=Counter)
     mitre: list[str] = field(default_factory=list)
     details: list[str] = field(default_factory=list)
     recommendation: str = ""
     enrichment: dict[str, Any] = field(default_factory=dict)
-    reported_count: int = 0  # сколько событий было в момент первой отправки (для сводки)
+    reported_count: int = 0  # event count when first reported (for the summary)
 
     def add(self, event: Event) -> None:
-        """Атака продолжается — дописываем событие в уже открытый алерт (дедупликация)."""
+        """Attack continues: add the event to the already open alert (deduplication)."""
         self.count += 1
         self.users[event.user] += 1
         self.ips[event.ip] += 1

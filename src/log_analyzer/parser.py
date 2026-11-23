@@ -1,13 +1,13 @@
-"""Парсер логов аутентификации SSH.
+"""SSH authentication log parser.
 
-Понимает:
-* классический syslog:      ``Nov 12 03:11:42 srv sshd[1234]: ...`` (без года!)
-* syslog с ISO 8601:        ``2026-11-12T03:11:42.123+04:00 srv sshd[1234]: ...``
-* s6-log / docker-логи:     ``2026-11-12 03:11:42.123456789  ...`` (linuxserver/openssh-server)
-* journalctl -o json:       по одной JSON-записи на строку
-* ротированные ``.gz``-файлы и ``-`` (stdin)
-* ``message repeated N times: [ ... ]`` — rsyslog схлопывает одинаковые строки,
-  без разворачивания такие атаки недосчитываются в N раз.
+Understands:
+* classic syslog:          ``Nov 12 03:11:42 srv sshd[1234]: ...`` (no year!)
+* syslog with ISO 8601:    ``2026-11-12T03:11:42.123+04:00 srv sshd[1234]: ...``
+* s6-log / docker logs:    ``2026-11-12 03:11:42.123456789  ...`` (linuxserver/openssh-server)
+* journalctl -o json:       one JSON record per line
+* rotated ``.gz`` files and ``-`` (stdin)
+* ``message repeated N times: [ ... ]``: rsyslog collapses identical lines,
+  without expanding them such attacks are undercounted N times.
 """
 
 from __future__ import annotations
@@ -23,12 +23,12 @@ from typing import IO
 
 from log_analyzer.models import Event, EventType
 
-# --- Шаблоны сообщений sshd ------------------------------------------------
+# --- sshd message patterns -------------------------------------------------
 
 _IP = r"(?P<ip>[0-9a-fA-F:.]+)"
 
-# Считаем неудачей только подбор пароля. "Failed publickey" — обычное дело у легитимных
-# пользователей с несколькими ключами в агенте, "Failed none" — служебная проба клиента.
+# Only password guessing counts as a failure. "Failed publickey" is normal for legitimate
+# users with several keys in their agent, "Failed none" is a client probe.
 FAILED_RE = re.compile(
     r"Failed (?P<method>password|keyboard-interactive/pam|keyboard-interactive) "
     r"for (?:invalid user )?(?P<user>.*?) from " + _IP + r" port (?P<port>\d+)"
@@ -45,7 +45,7 @@ PREAUTH_RE = re.compile(
 )
 REPEATED_RE = re.compile(r"^message repeated (?P<n>\d+) times: \[\s*(?P<msg>.*?)\s*\]$")
 
-# Пары «шаблон → тип события». Порядок важен: FAILED раньше INVALID.
+# (pattern, event type) pairs. Order matters: FAILED before INVALID.
 PATTERNS = [
     (FAILED_RE, EventType.FAILED),
     (INVALID_RE, EventType.INVALID_USER),
@@ -53,7 +53,7 @@ PATTERNS = [
     (PREAUTH_RE, EventType.PREAUTH_CLOSE),
 ]
 
-# --- Шаблоны заголовка строки (время, хост, программа) ---------------------
+# --- Line header patterns (time, host, program) ----------------------------
 
 SYSLOG_RE = re.compile(
     r"^(?P<mon>[A-Z][a-z]{2})\s+(?P<day>\d{1,2}) (?P<hms>\d{2}:\d{2}:\d{2})\s+"
@@ -81,7 +81,7 @@ MONTHS = {
 
 
 def _is_sshd(prog: str | None) -> bool:
-    # sshd, а в OpenSSH 9.8+ ещё sshd-session и sshd-auth
+    # sshd, plus sshd-session and sshd-auth in OpenSSH 9.8+
     return prog is None or prog.startswith("sshd")
 
 
@@ -93,14 +93,14 @@ def _valid_ip(ip: str) -> bool:
     return True
 
 
-# --- Время -------------------------------------------------------------------
+# --- Time --------------------------------------------------------------------
 
 
 def parse_syslog_time(
     mon: str, day: str, hms: str, year: int | None = None, now: datetime | None = None
 ) -> datetime | None:
-    """В syslog нет года. Подставляем текущий, а если дата получилась в будущем
-    (лог за декабрь читаем в январе) — прошлый. Так же делает rsyslog/logwatch."""
+    """Syslog has no year. Use the current one, and if the date ends up in the future
+    (reading a December log in January), use the previous one, as rsyslog/logwatch do."""
     month = MONTHS.get(mon)
     if month is None:
         return None
@@ -113,18 +113,18 @@ def parse_syslog_time(
         if t > now + timedelta(days=1):
             t = t.replace(year=now.year - 1)
         return t
-    except ValueError:  # 29 февраля в невисокосный год и т.п.
+    except ValueError:  # Feb 29 in a non-leap year, etc.
         return None
 
 
 def parse_iso_time(ts: str) -> datetime | None:
-    """ISO 8601 → наивное локальное время (как у syslog-строк), чтобы их можно было сравнивать."""
+    """ISO 8601 → naive local time (like syslog lines) so they can be compared."""
     ts = ts.replace(" ", "T", 1)
     if ts.endswith("Z"):
         ts = ts[:-1] + "+00:00"
-    # fromisoformat до 3.11 не понимает >6 знаков дробной части (s6 пишет наносекунды)
+    # fromisoformat before 3.11 can't parse >6 fractional digits (s6 writes nanoseconds)
     ts = re.sub(r"(\.\d{6})\d+", r"\1", ts)
-    # и смещение без двоеточия (+0400)
+    # or an offset without a colon (+0400)
     ts = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", ts)
     try:
         t = datetime.fromisoformat(ts)
@@ -136,17 +136,17 @@ def parse_iso_time(ts: str) -> datetime | None:
 
 
 def parse_tai64n(hexstr: str) -> datetime:
-    # TAI64N: 8 байт секунд (2^62 + TAI) + 4 байта наносекунд. TAI опережает UTC на 37 с.
+    # TAI64N: 8 bytes of seconds (2^62 + TAI) + 4 bytes of nanoseconds. TAI is 37 s ahead of UTC.
     seconds = int(hexstr[:16], 16) - 2**62 - 37
     nanos = int(hexstr[16:], 16)
     return datetime.fromtimestamp(seconds + nanos / 1e9)
 
 
-# --- Разбор сообщений ----------------------------------------------------------
+# --- Message parsing -----------------------------------------------------------
 
 
 def parse_message(msg: str, time: datetime, host: str | None = None) -> list[Event]:
-    """Разобрать текст сообщения sshd (без заголовка). Список — из-за 'message repeated N times'."""
+    """Parse an sshd message (without header). Returns a list due to 'message repeated N times'."""
     repeat = 1
     m = REPEATED_RE.match(msg)
     if m:
@@ -179,7 +179,7 @@ def parse_message(msg: str, time: datetime, host: str | None = None) -> list[Eve
 def split_header(
     line: str, year: int | None = None, now: datetime | None = None
 ) -> tuple[datetime, str, str | None] | None:
-    """Отделить время и программу от сообщения. None — если строка не от sshd или не распознана."""
+    """Split time and program from the message. None if the line is not from sshd or unknown."""
     m = SYSLOG_RE.match(line)
     if m:
         if not _is_sshd(m["prog"]):
@@ -214,7 +214,7 @@ def parse_line_all(line: str, year: int | None = None, now: datetime | None = No
 
 
 def parse_line(line: str, year: int | None = None, now: datetime | None = None) -> Event | None:
-    """Одна строка → Event или None (строка нам не нужна)."""
+    """One line → Event, or None if the line is irrelevant."""
     events = parse_line_all(line, year, now)
     return events[0] if events else None
 
@@ -223,7 +223,7 @@ def parse_line(line: str, year: int | None = None, now: datetime | None = None) 
 
 
 def parse_journal_entry(raw: str) -> list[Event]:
-    """Строка из `journalctl -o json`. Время берём из __REALTIME_TIMESTAMP (микросекунды)."""
+    """A line from `journalctl -o json`. Time comes from __REALTIME_TIMESTAMP (microseconds)."""
     raw = raw.strip()
     if not raw:
         return []
@@ -237,7 +237,7 @@ def parse_journal_entry(raw: str) -> list[Event]:
     if ident and not str(ident).startswith("sshd"):
         return []
     msg = entry.get("MESSAGE")
-    if isinstance(msg, list):  # journald отдаёт не-UTF8 сообщения массивом байт
+    if isinstance(msg, list):  # journald returns non-UTF8 messages as a byte array
         msg = bytes(msg).decode("utf-8", errors="replace")
     if not isinstance(msg, str):
         return []
@@ -249,7 +249,7 @@ def parse_journal_entry(raw: str) -> list[Event]:
     return parse_message(msg, ts, host if isinstance(host, str) else None)
 
 
-# --- Файлы -------------------------------------------------------------------------
+# --- Files -------------------------------------------------------------------------
 
 
 def open_log(path: str) -> IO[str]:
@@ -271,7 +271,7 @@ def read_lines(path: str) -> Iterator[str]:
 
 
 def looks_like_journal(path: str) -> bool:
-    """Автоопределение формата: первая непустая строка — JSON-объект."""
+    """Format autodetection: the first non-empty line is a JSON object."""
     if path == "-":
         return False
     for line in read_lines(path):

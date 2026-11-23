@@ -1,4 +1,4 @@
-"""Конфиг (YAML), allowlist доверенных сетей и загрузка .env."""
+"""Config (YAML), allowlist of trusted networks and .env loading."""
 
 from __future__ import annotations
 
@@ -17,42 +17,42 @@ class ConfigError(ValueError):
 
 @dataclass
 class DetectionConfig:
-    # Брутфорс: >= threshold неудач с одного IP за window секунд (как maxretry/findtime в fail2ban)
+    # Brute force: >= threshold failures from one IP in window seconds (fail2ban maxretry/findtime)
     window: int = 60
     threshold: int = 5
-    # Успешный вход: сколько секунд назад смотреть неудачи с того же IP
+    # Successful login: how many seconds back to look for failures from the same IP
     success_lookback: int = 3600
-    # Spraying: >= spray_users разных логинов с одного IP за spray_window секунд
+    # Spraying: >= spray_users distinct usernames from one IP within spray_window seconds
     spray_window: int = 3600
     spray_users: int = 5
-    # Распределённая атака: >= distributed_ips разных IP на один логин за distributed_window
+    # Distributed attack: >= distributed_ips distinct IPs on one username in distributed_window
     distributed_window: int = 600
     distributed_ips: int = 5
-    # Сканеры: >= scan_threshold обрывов [preauth] / Invalid user за window секунд
+    # Scanners: >= scan_threshold [preauth] disconnects / Invalid user within window seconds
     scan_threshold: int = 10
-    # Дедупликация: пока атака идёт без пауз дольше cooldown, это один и тот же алерт
+    # Deduplication: while the attack has no gap longer than cooldown, it is the same alert
     cooldown: int = 900
-    # Перебор этих логинов повышает severity брутфорса до HIGH
+    # Brute force against these usernames raises severity to HIGH
     privileged_users: list[str] = field(default_factory=lambda: ["root"])
 
     def validate(self) -> None:
         for f in fields(self):
             value = getattr(self, f.name)
             if isinstance(value, int) and value <= 0:
-                raise ConfigError(f"detection.{f.name} должен быть > 0, получено {value}")
+                raise ConfigError(f"detection.{f.name} must be > 0, got {value}")
 
 
 @dataclass
 class TelegramConfig:
     min_severity: Severity = Severity.MEDIUM
-    max_alerts: int = 10  # больше алертов за один analyze — одно сводное сообщение
+    max_alerts: int = 10  # more alerts in one analyze run go out as one summary message
     timeout: int = 10
 
 
 @dataclass
 class EnrichmentConfig:
-    geoip_db: str | None = None  # путь к GeoLite2-Country.mmdb / GeoLite2-City.mmdb
-    blocklists: list[str] = field(default_factory=list)  # файлы с IP/CIDR, по одному на строку
+    geoip_db: str | None = None  # path to GeoLite2-Country.mmdb / GeoLite2-City.mmdb
+    blocklists: list[str] = field(default_factory=list)  # files with one IP/CIDR per line
 
 
 @dataclass
@@ -64,7 +64,7 @@ class Config:
 
 
 class Allowlist:
-    """Доверенные IP и подсети. Всё, что отсюда, не даёт алертов (борьба с false positive)."""
+    """Trusted IPs and subnets. Nothing from them raises alerts (false positive control)."""
 
     def __init__(self, entries: list[str] | None = None):
         self.networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
@@ -72,7 +72,7 @@ class Allowlist:
             try:
                 self.networks.append(ipaddress.ip_network(str(entry).strip(), strict=False))
             except ValueError as e:
-                raise ConfigError(f"allowlist: неверный IP/подсеть {entry!r}: {e}") from None
+                raise ConfigError(f"allowlist: invalid IP/subnet {entry!r}: {e}") from None
 
     def __contains__(self, ip: object) -> bool:
         try:
@@ -88,17 +88,15 @@ class Allowlist:
 
 
 def _fill(cls: type, data: Any, section: str) -> Any:
-    """dict → dataclass с проверкой опечаток в ключах."""
+    """dict → dataclass, rejecting typos in keys."""
     if data is None:
         return cls()
     if not isinstance(data, dict):
-        raise ConfigError(f"секция {section} должна быть словарём")
+        raise ConfigError(f"section {section} must be a mapping")
     known = {f.name for f in fields(cls)}
     unknown = set(data) - known
     if unknown:
-        raise ConfigError(
-            f"{section}: неизвестные ключи {sorted(unknown)}, допустимо {sorted(known)}"
-        )
+        raise ConfigError(f"{section}: unknown keys {sorted(unknown)}, allowed {sorted(known)}")
     return cls(**data)
 
 
@@ -110,15 +108,15 @@ def load_config(path: str | os.PathLike[str] | None) -> Config:
     try:
         raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     except OSError as e:
-        raise ConfigError(f"не удалось прочитать конфиг {path}: {e}") from None
+        raise ConfigError(f"cannot read config {path}: {e}") from None
     except yaml.YAMLError as e:
-        raise ConfigError(f"ошибка YAML в {path}: {e}") from None
+        raise ConfigError(f"YAML error in {path}: {e}") from None
     if not isinstance(raw, dict):
-        raise ConfigError("конфиг должен быть словарём")
+        raise ConfigError("config must be a mapping")
 
     unknown = set(raw) - {"detection", "allowlist", "telegram", "enrichment"}
     if unknown:
-        raise ConfigError(f"неизвестные секции конфига: {sorted(unknown)}")
+        raise ConfigError(f"unknown config sections: {sorted(unknown)}")
 
     detection = _fill(DetectionConfig, raw.get("detection"), "detection")
     detection.validate()
@@ -131,8 +129,8 @@ def load_config(path: str | os.PathLike[str] | None) -> Config:
 
     allowlist = raw.get("allowlist") or []
     if not isinstance(allowlist, list):
-        raise ConfigError("allowlist должен быть списком IP/подсетей")
-    Allowlist(allowlist)  # валидируем сразу, чтобы упасть при старте, а не посреди анализа
+        raise ConfigError("allowlist must be a list of IPs/subnets")
+    Allowlist(allowlist)  # validate now to fail at startup, not in the middle of analysis
 
     return Config(
         detection=detection, allowlist=allowlist, telegram=telegram, enrichment=enrichment
@@ -140,8 +138,8 @@ def load_config(path: str | os.PathLike[str] | None) -> Config:
 
 
 def load_dotenv(path: str | os.PathLike[str] = ".env") -> None:
-    """Минимальный загрузчик .env: KEY=value, комментарии #.
-    Уже заданные переменные окружения не перетирает."""
+    """Minimal .env loader: KEY=value, # comments.
+    Does not override variables already set in the environment."""
     p = Path(path)
     if not p.is_file():
         return

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "log-analyzer"
 dynamic = ["version"]
-description = "Учебный детектор SSH brute force / password spraying по auth.log и journald с алертами в Telegram"
+description = "SSH brute force / password spraying detector for auth.log and journald with Telegram alerts"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -35,7 +35,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
-ignore = ["RUF001", "RUF002", "RUF003"]  # кириллица и «типографика» в строках — это нормально
+ignore = ["RUF001", "RUF002", "RUF003"]  # typographic characters (–, …) in strings are intended
 
 [tool.bandit]
 exclude_dirs = ["tests"]

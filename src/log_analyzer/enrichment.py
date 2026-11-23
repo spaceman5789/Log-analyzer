@@ -1,4 +1,4 @@
-"""Обогащение алертов контекстом: тип адреса, страна (GeoIP), наличие в blocklist."""
+"""Alert enrichment: address type, country (GeoIP), blocklist membership."""
 
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from log_analyzer.models import Alert
 
 log = logging.getLogger(__name__)
 
-# Документационные диапазоны (RFC 5737 / RFC 3849). Python считает их "private",
-# но для аналитика это отдельная категория — в живом логе их быть не должно.
+# Documentation ranges (RFC 5737 / RFC 3849). Python treats them as "private",
+# but for an analyst they are a separate category: they should never appear in a real log.
 DOC_NETS = [
     ipaddress.ip_network(n)
     for n in ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "2001:db8::/32")
 ]
 
-MAX_IPS_PER_ALERT = 10  # у распределённой атаки может быть сотня IP — обогащаем топ
+MAX_IPS_PER_ALERT = 10  # a distributed attack can have hundreds of IPs, enrich only the top ones
 
 
 def ip_scope(ip: str) -> str:
@@ -32,20 +32,20 @@ def ip_scope(ip: str) -> str:
     if any(addr.version == n.version and addr in n for n in DOC_NETS):
         return "documentation"
     if addr.is_private:
-        return "private"  # атака изнутри сети — повод проверить, не скомпрометирован ли хост
+        return "private"  # attack from inside the network: is the source host compromised?
     if addr.is_global:
         return "public"
     return "reserved"
 
 
 def load_blocklist(paths: list[str]) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-    """Файлы формата FireHOL / Spamhaus DROP: IP или CIDR в начале строки, комментарии # и ;"""
+    """FireHOL / Spamhaus DROP files: IP or CIDR at line start, comments with # and ;"""
     nets = []
     for path in paths:
         try:
             text = Path(path).read_text(encoding="utf-8", errors="replace")
         except OSError as e:
-            log.warning("blocklist %s не прочитан: %s", path, e)
+            log.warning("could not read blocklist %s: %s", path, e)
             continue
         for line in text.splitlines():
             token = line.split("#", 1)[0].split(";", 1)[0].strip()
@@ -70,14 +70,14 @@ class Enricher:
         if not path:
             return None
         try:
-            import geoip2.database  # опциональная зависимость: pip install .[geoip]
+            import geoip2.database  # optional dependency: pip install .[geoip]
         except ImportError:
-            log.warning("geoip_db задан, но пакет geoip2 не установлен: pip install '.[geoip]'")
+            log.warning("geoip_db is set but geoip2 is not installed: pip install '.[geoip]'")
             return None
         try:
             return geoip2.database.Reader(path)
         except (OSError, ValueError) as e:
-            log.warning("не удалось открыть GeoIP базу %s: %s", path, e)
+            log.warning("could not open GeoIP database %s: %s", path, e)
             return None
 
     def _geo_lookup(self, ip: str) -> dict[str, Any]:
@@ -89,7 +89,7 @@ class Enricher:
                 return {"country": r.country.iso_code, "city": r.city.name}
             r = self.geo.country(ip)
             return {"country": r.country.iso_code}
-        except Exception:  # AddressNotFoundError, ValueError и т.п. — просто нет данных
+        except Exception:  # AddressNotFoundError, ValueError etc.: simply no data
             return {}
 
     def lookup(self, ip: str) -> dict[str, Any]:

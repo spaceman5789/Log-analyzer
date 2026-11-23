@@ -1,44 +1,44 @@
-# Пример конфига log-analyzer. Скопируйте в config.yaml и поправьте под себя:
+# Example log-analyzer config. Copy to config.yaml and adjust:
 #   log-analyzer analyze /var/log/auth.log -c config.yaml
-# Флаги CLI (--window, --threshold, --cooldown, --allow) имеют приоритет над конфигом.
+# CLI flags (--window, --threshold, --cooldown, --allow) take precedence over the config.
 
 detection:
-  # Брутфорс: >= threshold неудачных паролей с одного IP за window секунд
-  # (аналог maxretry / findtime в fail2ban)
+  # Brute force: >= threshold failed passwords from one IP within window seconds
+  # (like maxretry / findtime in fail2ban)
   window: 60
   threshold: 5
-  # Успешный вход с IP, где за последние success_lookback секунд было >= threshold неудач → CRITICAL
+  # Successful login from an IP with >= threshold failures in the last success_lookback seconds → CRITICAL
   success_lookback: 3600
-  # Password spraying (T1110.003): >= spray_users разных логинов с одного IP за spray_window
+  # Password spraying (T1110.003): >= spray_users distinct usernames from one IP within spray_window
   spray_window: 3600
   spray_users: 5
-  # Распределённая атака: >= distributed_ips разных IP на один логин за distributed_window
+  # Distributed attack: >= distributed_ips distinct IPs on one username within distributed_window
   distributed_window: 600
   distributed_ips: 5
-  # Сканеры (LOW): >= scan_threshold обрывов [preauth] / Invalid user с IP за window
+  # Scanners (LOW): >= scan_threshold [preauth] disconnects / Invalid user from an IP within window
   scan_threshold: 10
-  # Дедупликация: атака без пауз дольше cooldown — один алерт, а не 700 сообщений
+  # Deduplication: an attack with no gap longer than cooldown is one alert, not 700 messages
   cooldown: 900
-  # Перебор этих логинов поднимает severity брутфорса до HIGH
+  # Brute force against these usernames raises severity to HIGH
   privileged_users: [root]
 
-# Доверенные IP и подсети — от них алертов не будет (борьба с false positive).
+# Trusted IPs and subnets: no alerts from them (false positive control).
 allowlist:
-  - 192.0.2.10/32     # рабочая машина админа
-  - 10.0.5.0/24       # CI-раннеры (один стучится с битым ключом каждые 10 секунд)
+  - 192.0.2.10/32     # admin workstation
+  - 10.0.5.0/24       # CI runners (one hits SSH with a broken key every 10 seconds)
   - 127.0.0.1
   - ::1
 
 telegram:
-  # В Telegram шлём только важное, остальное видно в отчёте
+  # Send only important alerts to Telegram, the rest is in the report
   min_severity: HIGH
-  # Если за один analyze набралось больше — остальные одной сводкой
+  # If one analyze run has more, the rest go out as one summary
   max_alerts: 10
   timeout: 10
 
 enrichment:
-  # Страна IP: скачайте GeoLite2-Country.mmdb с maxmind.com и pip install '.[geoip]'
+  # IP country: download GeoLite2-Country.mmdb from maxmind.com and pip install '.[geoip]'
   geoip_db: null
-  # Публичные blocklist'ы (IP/CIDR по строке), например FireHOL level1:
+  # Public blocklists (one IP/CIDR per line), e.g. FireHOL level1:
   # curl -o firehol_level1.netset https://iplists.firehol.org/files/firehol_level1.netset
   blocklists: []

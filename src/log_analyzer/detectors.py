@@ -1,15 +1,15 @@
-"""Правила детекта. Работают потоково (событие за событием), поэтому один и тот же
-код используется и для разбора файла (`analyze`), и для режима реального времени (`watch`).
+"""Detection rules. They are streaming (event by event), so the same
+code serves both file analysis (`analyze`) and real-time mode (`watch`).
 
-Правила:
-* bruteforce          — >= threshold неудач с одного IP за window секунд     T1110.001
-* success_after_fail  — успешный вход с IP, у которого перед этим был брутфорс  T1110.001 + T1078
-* spraying            — >= spray_users разных логинов с одного IP           T1110.003
-* distributed         — >= distributed_ips разных IP перебирают один логин    T1110.001
-* scan                — много обрывов [preauth] / Invalid user с одного IP    T1595
+Rules:
+* bruteforce          — >= threshold failures from one IP within window s   T1110.001
+* success_after_fail  — successful login from an IP that brute-forced before  T1110.001 + T1078
+* spraying            — >= spray_users distinct usernames from one IP       T1110.003
+* distributed         — >= distributed_ips distinct IPs on one username      T1110.001
+* scan                — many [preauth] disconnects / Invalid user from one IP T1595
 
-Дедупликация: пока по ключу (правило, IP/логин) приходят события без пауз дольше
-cooldown, они дописываются в уже открытый алерт, а не порождают новый.
+Deduplication: while events for a key (rule, IP/username) arrive with no gap longer than
+cooldown, they are added to the open alert instead of creating a new one.
 """
 
 from __future__ import annotations
@@ -25,25 +25,25 @@ Window = deque[tuple[datetime, str]]
 
 RECOMMENDATIONS = {
     "bruteforce": (
-        "Заблокировать IP (fail2ban/nftables), проверить PasswordAuthentication no "
-        "и PermitRootLogin no в sshd_config, перейти на вход по ключам."
+        "Block the IP (fail2ban/nftables), check PasswordAuthentication no "
+        "and PermitRootLogin no in sshd_config, switch to key-based login."
     ),
     "success_after_fail": (
-        "Считать учётку скомпрометированной: проверить активные сессии (who, last), "
-        "сменить пароль, проверить ~/.ssh/authorized_keys, cron и новых пользователей, "
-        "заблокировать IP, при сомнениях изолировать хост."
+        "Treat the account as compromised: check active sessions (who, last), "
+        "change the password, check ~/.ssh/authorized_keys, cron and new users, "
+        "block the IP, isolate the host if in doubt."
     ),
     "spraying": (
-        "Заблокировать IP, проверить слабые пароли у перечисленных учёток, "
-        "включить вход только по ключам или MFA."
+        "Block the IP, check the listed accounts for weak passwords, "
+        "allow only key-based login or MFA."
     ),
     "distributed": (
-        "Атака из ботнета — бан по одному IP не поможет. Отключить вход по паролю для этого "
-        "логина, ключи/MFA, ограничить доступ к SSH (VPN, allowlist, GeoIP)."
+        "Botnet attack: banning single IPs will not help. Disable password login for this "
+        "account, use keys/MFA, restrict SSH access (VPN, allowlist, GeoIP)."
     ),
     "scan": (
-        "Фоновый шум интернета. Убедиться, что SSH не открыт наружу без нужды; "
-        "можно ограничить доступ по IP или спрятать за VPN."
+        "Internet background noise. Make sure SSH is not exposed without need; "
+        "consider restricting access by IP or moving it behind a VPN."
     ),
 }
 
@@ -65,15 +65,15 @@ class Detector:
         self.user_window: defaultdict[str, Window] = defaultdict(deque)  # user → (t, ip)
         self.recon_window: defaultdict[str, Window] = defaultdict(deque)  # ip → (t, user)
 
-        self.active: dict[tuple[str, str], Alert] = {}  # (rule, key) → открытый алерт
-        self.last_bruteforce: dict[str, Alert] = {}  # ip → последний алерт брутфорса
+        self.active: dict[tuple[str, str], Alert] = {}  # (rule, key) → open alert
+        self.last_bruteforce: dict[str, Alert] = {}  # ip → latest brute-force alert
         self.alerts: list[Alert] = []
         self.allowlisted = 0
 
-    # --- публичный API ---------------------------------------------------------
+    # --- public API ------------------------------------------------------------
 
     def process(self, e: Event) -> list[Alert]:
-        """Обработать одно событие, вернуть только НОВЫЕ алерты (их и нужно слать в Telegram)."""
+        """Process one event and return only NEW alerts (the ones to send to Telegram)."""
         if e.ip in self.allowlist:
             self.allowlisted += 1
             return []
@@ -93,9 +93,9 @@ class Detector:
         return new
 
     def expire(self, now: datetime) -> list[Alert]:
-        """Закрыть алерты, по которым атака стихла (нет событий дольше cooldown), и почистить
-        окна неактивных IP (иначе в режиме watch память растёт от каждого сканера).
-        Возвращает закрытые алерты, которые выросли после первой отправки, — по ним шлём сводку."""
+        """Close alerts whose attack has stopped (no events for longer than cooldown) and clear
+        windows of idle IPs (otherwise watch mode memory grows with every scanner).
+        Returns closed alerts that grew after first being reported, to send a summary for them."""
         cooldown = timedelta(seconds=self.cfg.cooldown)
         finished = []
         for k, a in list(self.active.items()):
@@ -130,7 +130,7 @@ class Detector:
             self.process(e)
         return self.alerts
 
-    # --- вспомогательное ----------------------------------------------------------
+    # --- helpers ------------------------------------------------------------------
 
     def _active(self, rule: str, key: str, now: datetime) -> Alert | None:
         a = self.active.get((rule, key))
@@ -151,12 +151,12 @@ class Detector:
         targeted = self.privileged & set(a.users)
         if targeted:
             a.severity = Severity.HIGH
-            a.title = f"SSH brute force по привилегированной учётке ({', '.join(sorted(targeted))})"
+            a.title = f"SSH brute force on a privileged account ({', '.join(sorted(targeted))})"
         else:
             a.severity = Severity.MEDIUM
             a.title = "SSH brute force"
 
-    # --- правила ------------------------------------------------------------------
+    # --- rules --------------------------------------------------------------------
 
     def _bruteforce(self, e: Event) -> list[Alert]:
         dq = self.fail_window[e.ip]
@@ -164,7 +164,7 @@ class Detector:
         _prune(dq, e.time - timedelta(seconds=self.cfg.window))
 
         a = self._active("bruteforce", e.ip, e.time)
-        if a:  # атака продолжается — копим в тот же алерт
+        if a:  # attack continues: keep adding to the same alert
             a.add(e)
             self._bruteforce_severity(a)
             return []
@@ -198,7 +198,7 @@ class Detector:
         if len(hist) < self.cfg.threshold and not recent_bf:
             return []
 
-        login = f"Затем: Accepted {e.method or ''} for {e.user} в {e.time:%H:%M:%S}".replace(
+        login = f"Then: Accepted {e.method or ''} for {e.user} at {e.time:%H:%M:%S}".replace(
             "  ", " "
         )
         a = self._active("success_after_fail", e.ip, e.time)
@@ -210,15 +210,17 @@ class Detector:
         failed_users = Counter(u for _, u in hist)
         details = [login]
         if e.user in failed_users:
-            details.append(f"Логин {e.user} перебирался — пароль, вероятно, подобран")
+            details.append(
+                f"Username {e.user} was being guessed: the password was probably cracked"
+            )
         else:
             details.append(
-                f"Вход под другим логином ({e.user}), чем перебирали — проверить утечку учётки"
+                f"Login as a different user ({e.user}) than guessed: check for leaked credentials"
             )
         a = Alert(
             rule="success_after_fail",
             severity=Severity.CRITICAL,
-            title="Успешный вход после брутфорса",
+            title="Successful login after brute force",
             key=e.ip,
             ip=e.ip,
             host=e.host,
@@ -242,7 +244,7 @@ class Detector:
         if a:
             a.add(e)
             return []
-        # Быстрый перебор многих логинов уже покрыт алертом bruteforce — не шумим дважды
+        # Fast guessing over many usernames is already covered by bruteforce, don't alert twice
         if self._active("bruteforce", e.ip, e.time):
             return []
         users = Counter(u for _, u in dq)
@@ -252,7 +254,7 @@ class Detector:
         a = Alert(
             rule="spraying",
             severity=Severity.MEDIUM,
-            title="Password spraying (много логинов с одного IP)",
+            title="Password spraying (many usernames from one IP)",
             key=e.ip,
             ip=e.ip,
             host=e.host,
@@ -263,8 +265,8 @@ class Detector:
             ips=Counter({e.ip: len(dq)}),
             mitre=["T1110.003"],
             details=[
-                "1–2 попытки на логин: медленно и тихо, правило брутфорса по одному "
-                "логину такое не ловит"
+                "1–2 attempts per username: slow and quiet, the per-IP brute-force rule "
+                "does not catch it"
             ],
         )
         return self._register(a)
@@ -285,7 +287,7 @@ class Detector:
         a = Alert(
             rule="distributed",
             severity=Severity.HIGH,
-            title=f"Распределённый брутфорс логина {e.user!r}",
+            title=f"Distributed brute force on username {e.user!r}",
             key=e.user,
             ip=None,
             host=e.host,
@@ -295,7 +297,9 @@ class Detector:
             users=Counter({e.user: len(dq)}),
             ips=ips,
             mitre=["T1110.001"],
-            details=["Каждый IP по отдельности ниже порога брутфорса — атака видна только в сумме"],
+            details=[
+                "Each IP alone is below the brute-force threshold: only the sum shows the attack"
+            ],
         )
         return self._register(a)
 
@@ -317,7 +321,7 @@ class Detector:
         a = Alert(
             rule="scan",
             severity=Severity.LOW,
-            title="SSH-сканер: обрывы до аутентификации / несуществующие логины",
+            title="SSH scanner: pre-auth disconnects / non-existent usernames",
             key=e.ip,
             ip=e.ip,
             host=e.host,
@@ -336,5 +340,5 @@ def detect(
     cfg: DetectionConfig | None = None,
     allowlist: Allowlist | None = None,
 ) -> list[Alert]:
-    """Удобная обёртка для тестов и разового анализа."""
+    """Convenience wrapper for tests and one-off analysis."""
     return Detector(cfg, allowlist).run(events)

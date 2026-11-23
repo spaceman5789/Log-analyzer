@@ -19,7 +19,7 @@ from log_analyzer.parser import (
 Y = 2026
 
 
-# --- шаг 6 из плана: каждая строка фикстуры разбирается правильно ----------------------
+# --- plan step 6: every fixture line is parsed correctly -----------------------------
 
 SAMPLE_EXPECTED = [
     (EventType.FAILED, "203.0.113.5", "root"),
@@ -34,7 +34,7 @@ SAMPLE_EXPECTED = [
     (EventType.FAILED, "198.51.100.23", "oracle"),
     (EventType.FAILED, "198.51.100.23", "ubuntu"),
     (EventType.ACCEPTED, "192.0.2.10", "denis"),
-    None,  # строка CRON
+    None,  # CRON line
 ]
 
 
@@ -109,9 +109,9 @@ def test_preauth(line, user):
     "line",
     [
         "Nov 12 03:15:30 srv CRON[1500]: pam_unix(cron:session): session opened for user root",
-        # подделка: чужая программа пишет строку, похожую на sshd
+        # spoofing: another program writes an sshd-like line
         "Nov 12 03:15:30 srv evil[1]: Failed password for root from 203.0.113.5 port 1 ssh2",
-        # publickey-неудачи — норма для пользователей с несколькими ключами
+        # publickey failures are normal for users with several keys
         "Nov 12 03:15:30 srv sshd[1]: Failed publickey for denis from 192.0.2.10 port 1 ssh2",
         "Nov 12 03:15:30 srv sshd[1]: Failed password for root from not-an-ip port 1 ssh2",
         "garbage",
@@ -139,7 +139,7 @@ def test_ipv6():
 
 
 def test_syslog_year_rollover():
-    # Читаем 2 января лог с записью от 31 декабря — это прошлый год, а не будущий
+    # Reading on Jan 2 a log entry from Dec 31: that is last year, not next year
     now = datetime(2027, 1, 2, 10, 0, 0)
     assert parse_syslog_time("Dec", "31", "23:59:59", now=now).year == 2026
     assert parse_syslog_time("Jan", "2", "09:00:00", now=now).year == 2027
@@ -148,7 +148,7 @@ def test_syslog_year_rollover():
 def test_iso_time_offset_normalized():
     a = parse_iso_time("2026-11-12T03:11:42+04:00")
     b = parse_iso_time("2026-11-11T23:11:42Z")
-    assert a == b  # один и тот же момент, приведённый к локальному времени
+    assert a == b  # the same instant, converted to local time
     expected = datetime(2026, 11, 11, 23, 11, 42, tzinfo=timezone.utc).astimezone()
     assert a == expected.replace(tzinfo=None)
 
@@ -161,7 +161,7 @@ def test_iso_time_nanoseconds_and_space():
 def test_iso_fixture(load):
     events = load("auth_iso.log")
     types = [e.type for e in events]
-    # 1 + 1 + 4 (message repeated 4 times) failed, 1 accepted, 1 preauth; systemd — мимо
+    # 1 + 1 + 4 (message repeated 4 times) failed, 1 accepted, 1 preauth; systemd is ignored
     assert types.count(EventType.FAILED) == 6
     assert types.count(EventType.ACCEPTED) == 1
     assert types.count(EventType.PREAUTH_CLOSE) == 1
@@ -169,7 +169,7 @@ def test_iso_fixture(load):
 
 
 def test_s6_docker_format():
-    # формат /config/logs/openssh/current в linuxserver/openssh-server
+    # /config/logs/openssh/current format in linuxserver/openssh-server
     e = parse_line(
         "2026-11-12 03:11:42.123456789  Failed password for test from 172.17.0.1 port 1 ssh2"
     )

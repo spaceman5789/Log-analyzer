@@ -1,4 +1,4 @@
-"""Сводный отчёт: статистика по событиям + список алертов. Текст для человека, JSON для SIEM."""
+"""Summary report: event statistics plus alerts. Text for humans, JSON for a SIEM."""
 
 from __future__ import annotations
 
@@ -10,16 +10,12 @@ from log_analyzer.alerting import format_alert_text
 from log_analyzer.models import Alert, Event, EventType
 
 
-def plural(n: int, one: str, few: str, many: str) -> str:
-    if n % 10 == 1 and n % 100 != 11:
-        return one
-    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
-        return few
-    return many
+def plural(n: int, one: str, many: str) -> str:
+    return one if n == 1 else many
 
 
 def num(n: int) -> str:
-    return f"{n:,}".replace(",", " ")
+    return f"{n:,}"
 
 
 def sort_alerts(alerts: list[Alert]) -> list[Alert]:
@@ -29,7 +25,7 @@ def sort_alerts(alerts: list[Alert]) -> list[Alert]:
 def build_summary(
     events: list[Event], alerts: list[Alert], allowlisted: int = 0, top_n: int = 5
 ) -> dict[str, Any]:
-    """events — уже без allowlist."""
+    """events must already exclude the allowlist."""
     by_type = Counter(e.type.value for e in events)
     failed = [e for e in events if e.type is EventType.FAILED]
     accepted = [e for e in events if e.type is EventType.ACCEPTED]
@@ -66,45 +62,46 @@ def render_text(
         out.append(format_alert_text(a, color))
         out.append("")
     if not alerts:
-        out.append("Алертов нет — признаков атаки не найдено.\n")
+        out.append("No alerts: no signs of an attack found.\n")
 
     def section(title: str) -> None:
         out.append(f"=== {title} ===")
 
-    section("События по типам")
+    section("Events by type")
     for name, count in summary["events_by_type"].items():
         out.append(f"  {name:<15} {num(count)}")
     if summary["allowlisted_events"]:
-        out.append(f"  {'allowlist':<15} {num(summary['allowlisted_events'])} (пропущено)")
+        out.append(f"  {'allowlist':<15} {num(summary['allowlisted_events'])} (skipped)")
     tr = summary["time_range"]
     if tr:
-        out.append(f"  период: {tr['start'].replace('T', ' ')} – {tr['end'].replace('T', ' ')}")
+        out.append(f"  period: {tr['start'].replace('T', ' ')} – {tr['end'].replace('T', ' ')}")
 
-    section("Топ IP по неудачным попыткам")
+    section("Top IPs by failed attempts")
     for ip, count in summary["top_failed_ips"] or [("—", 0)]:
         out.append(f"  {ip:<40} {num(count)}")
 
-    section("Топ перебираемых логинов")
+    section("Top targeted usernames")
     for user, count in summary["top_failed_users"] or [("—", 0)]:
-        out.append(f"  {user or '<пусто>':<40} {num(count)}")
+        out.append(f"  {user or '<empty>':<40} {num(count)}")
 
     logins = summary["successful_logins"]
-    section(f"Успешные входы ({len(logins)})")
+    section(f"Successful logins ({len(logins)})")
     for item in logins[-10:]:
         out.append(
-            f"  {item['time'].replace('T', ' ')}  {item['user']} с {item['ip']} ({item['method']})"
+            f"  {item['time'].replace('T', ' ')}  {item['user']} from {item['ip']} "
+            f"({item['method']})"
         )
     if len(logins) > 10:
-        out.append(f"  … показаны последние 10 из {len(logins)}")
+        out.append(f"  … showing the last 10 of {len(logins)}")
 
     n_ev, n_ip, n_al = summary["events_total"], len(summary["attacking_ips"]), len(alerts)
     total = (
-        f"\nИтого: {num(n_ev)} {plural(n_ev, 'событие', 'события', 'событий')}, "
-        f"{n_ip} {plural(n_ip, 'атакующий IP', 'атакующих IP', 'атакующих IP')}, "
-        f"{n_al} {plural(n_al, 'алерт', 'алерта', 'алертов')}"
+        f"\nTotal: {num(n_ev)} {plural(n_ev, 'event', 'events')}, "
+        f"{n_ip} {plural(n_ip, 'attacking IP', 'attacking IPs')}, "
+        f"{n_al} {plural(n_al, 'alert', 'alerts')}"
     )
     if sent is not None:
-        total += f", отправлено в Telegram: {sent}"
+        total += f", sent to Telegram: {sent}"
     out.append(total)
     return "\n".join(out)
 

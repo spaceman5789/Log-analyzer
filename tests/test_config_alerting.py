@@ -24,7 +24,7 @@ from log_analyzer.models import Severity
 ROOT = Path(__file__).parent.parent
 
 
-# --- конфиг ---------------------------------------------------------------------------
+# --- config ---------------------------------------------------------------------------
 
 
 def test_example_config_loads():
@@ -74,7 +74,7 @@ def test_load_dotenv_does_not_override(tmp_path, monkeypatch):
     assert os.environ["TG_BOT_TOKEN"] == "abc"
 
 
-# --- форматирование ----------------------------------------------------------------------
+# --- formatting -----------------------------------------------------------------------
 
 
 def _alert(user="root"):
@@ -86,10 +86,10 @@ def test_text_alert_answers_what_where_when_how_bad_what_next():
     text = format_alert_text(_alert())
     assert text.startswith("[HIGH]")
     assert "IP: 203.0.113.5" in text
-    assert "Неудачных попыток: 6 за 5 с" in text
-    assert "Логины: root(6)" in text
+    assert "Failed attempts: 6 in 5 s" in text
+    assert "Usernames: root(6)" in text
     assert "T1110.001 Password Guessing" in text
-    assert "Что делать:" in text
+    assert "What to do:" in text
 
 
 def test_html_alert_escapes_user_controlled_data():
@@ -101,9 +101,9 @@ def test_html_alert_escapes_user_controlled_data():
 
 
 def test_human_duration():
-    assert human_duration(12) == "12 с"
-    assert human_duration(300) == "5 мин"
-    assert human_duration(3720) == "1 ч 2 мин"
+    assert human_duration(12) == "12 s"
+    assert human_duration(300) == "5 min"
+    assert human_duration(3720) == "1 h 2 min"
 
 
 # --- Telegram ----------------------------------------------------------------------------------
@@ -180,7 +180,7 @@ def test_telegram_from_env_requires_vars(monkeypatch):
         TelegramNotifier.from_env()
 
 
-# --- обогащение ---------------------------------------------------------------------------------
+# --- enrichment ---------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

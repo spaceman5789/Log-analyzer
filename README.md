@@ -14,8 +14,6 @@ is mapped to MITRE ATT&CK and can be sent to Telegram.
 > detector to understand detection logic from the inside: sliding windows, thresholds,
 > deduplication and fighting false positives.
 
-> **Note:** the CLI output and alert texts are in Russian.
-
 ## Features
 
 | | |
@@ -59,50 +57,46 @@ All options: `log-analyzer analyze --help`.
 ```
 $ log-analyzer analyze demo.log -c config.example.yaml
 
-[CRITICAL] Успешный вход после брутфорса
-  IP: 203.0.113.5   вошёл как: root   хост: srv
-  Неудачных попыток до входа: 47 за 3 мин 42 с (2026-11-12 03:30:00 – 03:33:42)
-  Логины: root(47)
-  Затем: Accepted password for root в 03:33:42
-  Логин root перебирался — пароль, вероятно, подобран
+[CRITICAL] Successful login after brute force
+  IP: 203.0.113.5   logged in as: root   host: srv
+  Failed attempts before login: 47 in 3 min 42 s (2026-11-12 03:30:00 – 03:33:42)
+  Usernames: root(47)
+  Then: Accepted password for root at 03:33:42
+  Username root was being guessed: the password was probably cracked
   MITRE ATT&CK: T1110.001 Password Guessing, T1078 Valid Accounts
-  Что делать: Считать учётку скомпрометированной: проверить активные сессии (who, last),
-  сменить пароль, проверить ~/.ssh/authorized_keys, cron и новых пользователей, ...
+  What to do: Treat the account as compromised: check active sessions (who, last),
+  change the password, check ~/.ssh/authorized_keys, cron and new users, ...
 
-[HIGH] SSH brute force по привилегированной учётке (root)
-  IP: 198.51.100.23   хост: srv
-  Неудачных попыток: 297 за 4 мин 42 с (2026-11-12 04:00:00 – 04:04:42)
-  Логины: root(125), admin(80), ubuntu(40), test(30), oracle(22)
+[HIGH] SSH brute force on a privileged account (root)
+  IP: 198.51.100.23   host: srv
+  Failed attempts: 297 in 4 min 42 s (2026-11-12 04:00:00 – 04:04:42)
+  Usernames: root(125), admin(80), ubuntu(40), test(30), oracle(22)
   MITRE ATT&CK: T1110.001 Password Guessing
 
-[HIGH] Распределённый брутфорс логина 'deploy'
-  Логин: deploy   IP-адресов: 8   хост: srv
-  IP: 203.0.113.105(2), 203.0.113.100(2), 203.0.113.102(2), ... и ещё 3
-  Каждый IP по отдельности ниже порога брутфорса — атака видна только в сумме
+[HIGH] Distributed brute force on username 'deploy'
+  Username: deploy   IPs: 8   host: srv
+  IP: 203.0.113.105(2), 203.0.113.100(2), 203.0.113.102(2), ... and 3 more
+  Each IP alone is below the brute-force threshold: only the sum shows the attack
 
-[MEDIUM] Password spraying (много логинов с одного IP)
-  IP: 203.0.113.77   хост: srv
-  Попыток: 10 за 45 мин (2026-11-12 04:30:00 – 05:15:53)
-  Логины: admin(1), test(1), user(1), guest(1), postgres(1) … и ещё 5
+[MEDIUM] Password spraying (many usernames from one IP)
+  IP: 203.0.113.77   host: srv
+  Attempts: 10 in 45 min (2026-11-12 04:30:00 – 05:15:53)
+  Usernames: admin(1), test(1), user(1), guest(1), postgres(1) … and 5 more
   MITRE ATT&CK: T1110.003 Password Spraying
 
-[LOW] SSH-сканер: обрывы до аутентификации / несуществующие логины
-  IP: 198.51.100.200   хост: srv
+[LOW] SSH scanner: pre-auth disconnects / non-existent usernames
+  IP: 198.51.100.200   host: srv
   MITRE ATT&CK: T1595 Active Scanning
 ...
-=== События по типам ===
+=== Events by type ===
   failed          372
   invalid_user    190
   accepted        2
   preauth_close   48
-  allowlist       24 (пропущено)
+  allowlist       24 (skipped)
 ...
-Итого: 612 событий, 12 атакующих IP, 6 алертов
+Total: 612 events, 12 attacking IPs, 6 alerts
 ```
-
-The five alerts above are: a CRITICAL successful login after brute force, a HIGH brute force on
-`root`, a HIGH distributed attack on `deploy`, a MEDIUM password spraying and a LOW scanner.
-The summary line reads "612 events, 12 attacking IPs, 6 alerts".
 
 (Output is shortened. Without `-c config.example.yaml` you also get a MEDIUM alert for the CI
 runner `10.0.5.20`, a false positive that the allowlist removes.)

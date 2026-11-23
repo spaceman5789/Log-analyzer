@@ -1,16 +1,16 @@
-"""Источники строк: `tail -f` по файлу с учётом ротации и journalctl (разовый и -f)."""
+"""Line sources: `tail -f` on a file with rotation support, and journalctl (one-shot and -f)."""
 
 from __future__ import annotations
 
 import os
 import shutil
 
-# вызываем только journalctl с фиксированными аргументами, без shell
+# only journalctl with fixed arguments is run, no shell
 import subprocess  # nosec B404
 import time
 from collections.abc import Callable, Iterator
 
-DEFAULT_UNITS = ("ssh", "sshd")  # Ubuntu/Debian и RHEL называют юнит по-разному
+DEFAULT_UNITS = ("ssh", "sshd")  # Ubuntu/Debian and RHEL name the unit differently
 
 
 class SourceError(RuntimeError):
@@ -25,10 +25,10 @@ def follow_file(
     should_stop: Callable[[], bool] = lambda: False,
     heartbeat: bool = False,
 ) -> Iterator[str]:
-    """Как `tail -F`: ждёт новые строки, переоткрывает файл после ротации logrotate
-    (сменился inode) или усечения (copytruncate). heartbeat=True — в простое отдаёт ""
-    каждые interval секунд, чтобы вызывающий код мог делать фоновую работу."""
-    # Файл переоткрывается после ротации, поэтому без with
+    """Like `tail -F`: waits for new lines, reopens the file after logrotate rotation
+    (inode changed) or truncation (copytruncate). heartbeat=True yields "" when idle
+    every interval seconds so the caller can do background work."""
+    # The file is reopened after rotation, hence no `with`
     f = open(path, encoding="utf-8", errors="replace")  # noqa: SIM115
     try:
         if not from_start:
@@ -41,14 +41,14 @@ def follow_file(
             if chunk:
                 idle_since = time.monotonic()
                 buf += chunk
-                if buf.endswith("\n"):  # строка дописана целиком
+                if buf.endswith("\n"):  # the line is complete
                     yield buf.rstrip("\r\n")
                     buf = ""
                 continue
 
             try:
                 st = os.stat(path)
-            except FileNotFoundError:  # между mv и созданием нового файла
+            except FileNotFoundError:  # between mv and creation of the new file
                 st = None
             if st is not None and (st.st_ino != inode or st.st_size < f.tell()):
                 f.close()
@@ -69,7 +69,9 @@ def follow_file(
 def _journalctl() -> str:
     exe = shutil.which("journalctl")
     if not exe:
-        raise SourceError("journalctl не найден — это не systemd-система? Укажите путь к файлу.")
+        raise SourceError(
+            "journalctl not found: not a systemd system? Pass a log file path instead."
+        )
     return exe
 
 
@@ -86,7 +88,7 @@ def read_journal(units: tuple[str, ...] = DEFAULT_UNITS, since: str | None = Non
         cmd += ["--since", since]
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)  # nosec B603
     if proc.returncode != 0:
-        raise SourceError(f"journalctl завершился с кодом {proc.returncode}: {proc.stderr.strip()}")
+        raise SourceError(f"journalctl exited with code {proc.returncode}: {proc.stderr.strip()}")
     yield from proc.stdout.splitlines()
 
 
@@ -94,7 +96,7 @@ def follow_journal(units: tuple[str, ...] = DEFAULT_UNITS) -> Iterator[str]:
     cmd = [_journalctl(), "-f", "-n", "0", "-o", "json", *_unit_args(units)]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)  # nosec B603
     if proc.stdout is None:
-        raise SourceError("не удалось запустить journalctl")
+        raise SourceError("failed to start journalctl")
     try:
         for line in proc.stdout:
             yield line.rstrip("\n")

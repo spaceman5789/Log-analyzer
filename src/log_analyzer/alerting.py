@@ -1,7 +1,7 @@
-"""Форматирование алертов (терминал / Telegram) и отправка в Telegram Bot API.
+"""Alert formatting (terminal / Telegram) and delivery via the Telegram Bot API.
 
-Хороший алерт отвечает на вопросы: что случилось, где, когда, насколько серьёзно,
-что делать дальше. Ровно эти блоки и собираются ниже.
+A good alert answers: what happened, where, when, how bad,
+and what to do next. Those are exactly the blocks built below.
 """
 
 from __future__ import annotations
@@ -33,19 +33,19 @@ RESET = "\033[0m"
 EMOJI = {Severity.CRITICAL: "🚨", Severity.HIGH: "🔴", Severity.MEDIUM: "🟠", Severity.LOW: "🟡"}
 
 COUNT_LABEL = {
-    "bruteforce": "Неудачных попыток",
-    "success_after_fail": "Неудачных попыток до входа",
-    "spraying": "Попыток",
-    "distributed": "Неудачных попыток",
-    "scan": "Событий",
+    "bruteforce": "Failed attempts",
+    "success_after_fail": "Failed attempts before login",
+    "spraying": "Attempts",
+    "distributed": "Failed attempts",
+    "scan": "Events",
 }
 
 SCOPE_LABEL = {
-    "public": "публичный",
-    "private": "ВНУТРЕННИЙ (проверить хост-источник!)",
-    "documentation": "TEST-NET (демо)",
+    "public": "public",
+    "private": "INTERNAL (check the source host!)",
+    "documentation": "TEST-NET (demo)",
     "loopback": "loopback",
-    "reserved": "зарезервированный",
+    "reserved": "reserved",
 }
 
 
@@ -53,23 +53,23 @@ class AlertingError(RuntimeError):
     pass
 
 
-# --- Текст -----------------------------------------------------------------------
+# --- Text ------------------------------------------------------------------------
 
 
 def human_duration(seconds: float) -> str:
     s = int(seconds)
     if s < 60:
-        return f"{s} с"
+        return f"{s} s"
     if s < 3600:
-        return f"{s // 60} мин" + (f" {s % 60} с" if s % 60 and s < 600 else "")
-    return f"{s // 3600} ч {s % 3600 // 60} мин"
+        return f"{s // 60} min" + (f" {s % 60} s" if s % 60 and s < 600 else "")
+    return f"{s // 3600} h {s % 3600 // 60} min"
 
 
 def top(counter: Counter[str], n: int = 5) -> str:
     items = counter.most_common(n)
-    text = ", ".join(f"{k or '<пусто>'}({v})" for k, v in items)
+    text = ", ".join(f"{k or '<empty>'}({v})" for k, v in items)
     rest = len(counter) - len(items)
-    return text + (f" … и ещё {rest}" if rest > 0 else "")
+    return text + (f" … and {rest} more" if rest > 0 else "")
 
 
 def time_range(a: Alert) -> str:
@@ -86,35 +86,35 @@ def enrichment_line(a: Alert) -> str | None:
         if info.get("country"):
             bits.append(info["country"] + (f"/{info['city']}" if info.get("city") else ""))
         if info.get("blocklisted"):
-            bits.append("в blocklist")
+            bits.append("on blocklist")
         parts.append(f"{ip}: {', '.join(b for b in bits if b)}")
     if len(items) > 3:
-        parts.append(f"… ещё {len(items) - 3} IP (полный контекст в --format json)")
+        parts.append(f"… {len(items) - 3} more IPs (full context in --format json)")
     return "; ".join(parts) if parts else None
 
 
 def alert_lines(a: Alert) -> list[str]:
-    """Тело алерта без заголовка — общий источник для терминала и Telegram."""
+    """Alert body without the title, shared by the terminal and Telegram."""
     lines = []
-    where = f"   хост: {a.host}" if a.host else ""
+    where = f"   host: {a.host}" if a.host else ""
     if a.rule == "distributed":
-        lines.append(f"Логин: {a.key}   IP-адресов: {len(a.ips)}{where}")
+        lines.append(f"Username: {a.key}   IPs: {len(a.ips)}{where}")
         lines.append(f"IP: {top(a.ips)}")
     elif a.rule == "success_after_fail":
-        lines.append(f"IP: {a.ip}   вошёл как: {a.compromised_user}{where}")
+        lines.append(f"IP: {a.ip}   logged in as: {a.compromised_user}{where}")
     else:
         lines.append(f"IP: {a.ip}{where}")
 
-    label = COUNT_LABEL.get(a.rule, "Событий")
-    lines.append(f"{label}: {a.count} за {human_duration(a.duration_seconds)} ({time_range(a)})")
+    label = COUNT_LABEL.get(a.rule, "Events")
+    lines.append(f"{label}: {a.count} in {human_duration(a.duration_seconds)} ({time_range(a)})")
     if a.users and a.rule != "distributed":
-        lines.append(f"Логины: {top(a.users)}")
+        lines.append(f"Usernames: {top(a.users)}")
     lines.extend(a.details)
     ctx = enrichment_line(a)
     if ctx:
-        lines.append(f"Контекст: {ctx}")
+        lines.append(f"Context: {ctx}")
     lines.append(f"MITRE ATT&CK: {', '.join(a.mitre_labels())}")
-    lines.append(f"Что делать: {a.recommendation}")
+    lines.append(f"What to do: {a.recommendation}")
     return lines
 
 
@@ -141,7 +141,7 @@ Opener = Callable[..., Any]
 
 
 class TelegramNotifier:
-    """Отправка через Bot API. Токен берётся из окружения и никогда не логируется."""
+    """Sends via the Bot API. The token comes from the environment and is never logged."""
 
     API = "https://api.telegram.org/bot{token}/sendMessage"
 
@@ -154,14 +154,14 @@ class TelegramNotifier:
         sleep: Callable[[float], None] = time.sleep,
     ):
         if not token or not chat_id:
-            raise AlertingError("нужны TG_BOT_TOKEN и TG_CHAT_ID")
+            raise AlertingError("TG_BOT_TOKEN and TG_CHAT_ID are required")
         self._token = token
         self.chat_id = chat_id
         self.timeout = timeout
         self._open = opener
         self._sleep = sleep
 
-    def __repr__(self) -> str:  # чтобы токен не утёк в трейсбек/лог
+    def __repr__(self) -> str:  # keep the token out of tracebacks/logs
         return f"TelegramNotifier(chat_id={self.chat_id!r}, token=***)"
 
     @classmethod
@@ -170,7 +170,7 @@ class TelegramNotifier:
         chat_id = os.environ.get("TG_CHAT_ID", "")
         if not token or not chat_id:
             raise AlertingError(
-                "не заданы TG_BOT_TOKEN / TG_CHAT_ID (переменные окружения или .env)"
+                "TG_BOT_TOKEN / TG_CHAT_ID are not set (environment variables or .env)"
             )
         return cls(token, chat_id, timeout)
 
@@ -188,21 +188,21 @@ class TelegramNotifier:
             method="POST",
         )
         try:
-            # URL фиксированный https://api.telegram.org, схема не управляется извне
+            # fixed URL https://api.telegram.org, the scheme is not user-controlled
             with self._open(req, timeout=self.timeout) as resp:  # nosec B310
                 resp.read()
         except urllib.error.HTTPError as e:
             body = _safe_body(e)
-            if e.code == 429 and _retry:  # flood control: подождать, сколько просит Telegram
+            if e.code == 429 and _retry:  # flood control: wait as long as Telegram asks
                 retry_after = min(int(body.get("parameters", {}).get("retry_after", 5)), 60)
-                log.warning("Telegram 429, повтор через %s с", retry_after)
+                log.warning("Telegram 429, retrying in %s s", retry_after)
                 self._sleep(retry_after)
                 return self.send_text(text, _retry=False)
             desc = body.get("description", e.reason)
             raise AlertingError(f"Telegram API {e.code}: {desc}") from None
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             reason = getattr(e, "reason", e)
-            raise AlertingError(f"Telegram недоступен: {reason}") from None
+            raise AlertingError(f"Telegram unreachable: {reason}") from None
 
     def send_alert(self, alert: Alert) -> None:
         self.send_text(format_alert_html(alert))

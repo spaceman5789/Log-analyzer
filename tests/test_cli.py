@@ -25,9 +25,9 @@ def run(capsys, *argv):
 def test_analyze_text(capsys, fixture_path):
     code, out, _ = run(capsys, "analyze", fixture_path("auth_sample.log"), "--year", "2026")
     assert code == 0
-    assert "[CRITICAL] Успешный вход после брутфорса" in out
+    assert "[CRITICAL] Successful login after brute force" in out
     assert "IP: 203.0.113.5" in out
-    assert "Итого: 12 событий, 1 атакующий IP, 2 алерта" in out
+    assert "Total: 12 events, 1 attacking IP, 2 alerts" in out
 
 
 def test_analyze_json(capsys, fixture_path):
@@ -48,14 +48,14 @@ def test_analyze_json(capsys, fixture_path):
 
 
 def test_analyze_threshold_and_window_flags(capsys, fixture_path):
-    # порог выше числа неудач — алертов нет
+    # threshold above the failure count: no alerts
     _, out, _ = run(capsys, "analyze", fixture_path("auth_sample.log"), "--threshold", "7")
-    assert "Алертов нет" in out
+    assert "No alerts" in out
 
 
 def test_analyze_allow_flag(capsys, fixture_path):
     _, out, _ = run(capsys, "analyze", fixture_path("auth_ci_runner.log"), "--allow", "10.0.5.0/24")
-    assert "Алертов нет" in out
+    assert "No alerts" in out
     assert "allowlist" in out
 
 
@@ -82,7 +82,7 @@ def test_fail_on_exit_code(capsys, fixture_path):
 def test_missing_file_is_clean_error(capsys):
     code, _, err = run(capsys, "analyze", "/nonexistent/auth.log")
     assert code == 2
-    assert "не найден" in err
+    assert "not found" in err
 
 
 def test_no_path_is_clean_error(capsys):
@@ -134,7 +134,7 @@ def test_telegram_send_flow(capsys, monkeypatch, fixture_path):
         "critical",
     )
     assert len(sent) == 1 and sent[0].severity is Severity.CRITICAL
-    assert "отправлено в Telegram: 1" in out
+    assert "sent to Telegram: 1" in out
 
 
 def test_send_alerts_caps_and_summarizes():
@@ -151,7 +151,7 @@ def test_send_alerts_caps_and_summarizes():
     alerts = detect(iter_events(lines))
     n = send_alerts(Fake(), alerts, Severity.LOW, max_alerts=2, pause=0)
     assert n == 2
-    assert isinstance(sent[-1], str) and "и ещё" in sent[-1]
+    assert isinstance(sent[-1], str) and "more alerts" in sent[-1]
 
 
 def test_generate_demo_triggers_every_rule(capsys):
@@ -203,7 +203,7 @@ def test_follow_file_reads_appended_lines_and_survives_rotation(tmp_path):
             f.write("line 1\nline ")
             f.flush()
             time.sleep(0.1)
-            f.write("2\n")  # дописанная в два приёма строка не должна разорваться
+            f.write("2\n")  # a line written in two chunks must not be split
         time.sleep(0.15)
         path.rename(tmp_path / "auth.log.1")  # logrotate
         path.write_text("after rotation\n")

@@ -15,14 +15,14 @@ def rules(alerts):
     return sorted(a.rule for a in alerts)
 
 
-# --- шаг 7: скользящее окно -----------------------------------------------------------
+# --- step 7: sliding window ------------------------------------------------------------
 
 
 def test_six_failures_in_12_seconds_alerts():
     events = [ev(i * 2) for i in range(6)]
     alerts = detect(events, CFG)
     assert rules(alerts) == ["bruteforce"]
-    assert alerts[0].count == 6  # 5-я создала алерт, 6-я дописалась в него
+    assert alerts[0].count == 6  # 5th created the alert, 6th was added to it
 
 
 def test_six_failures_five_minutes_apart_no_alert():
@@ -36,7 +36,7 @@ def test_threshold_boundary():
 
 
 def test_window_slides():
-    # 4 неудачи, пауза больше окна, ещё 4 — ни в одном окне нет 5
+    # 4 failures, a pause longer than the window, 4 more: no window has 5
     events = [ev(i) for i in range(4)] + [ev(120 + i) for i in range(4)]
     assert detect(events, CFG) == []
 
@@ -65,7 +65,7 @@ def test_bruteforce_fixture(load):
     assert a.mitre == ["T1110.001"]
 
 
-# --- шаг 8: успех после брутфорса ------------------------------------------------------
+# --- step 8: success after brute force--------------------------------------------------
 
 
 def test_success_after_fail_sample_fixture(load):
@@ -100,11 +100,11 @@ def test_success_long_after_failures_is_not_critical():
 
 def test_clean_traffic_no_alerts(load):
     events = load("auth_clean.log")
-    assert events  # что-то распарсилось
+    assert events  # something was parsed
     assert detect(events, CFG) == []
 
 
-# --- уровень 2: spraying, распределённая атака, cooldown ---------------------------------------
+# --- level 2: spraying, distributed attack, cooldown ------------------------------------------
 
 
 def test_spraying_fixture(load):
@@ -112,7 +112,7 @@ def test_spraying_fixture(load):
     assert rules(alerts) == ["spraying"]
     a = alerts[0]
     assert a.mitre == ["T1110.003"]
-    assert len(a.users) == 8  # алерт создан на 5-м логине и копил дальше
+    assert len(a.users) == 8  # alert created at the 5th username and kept accumulating
     assert a.count == 8
 
 
@@ -140,7 +140,7 @@ def test_scan_low():
 
 
 def test_cooldown_dedup_long_attack_is_one_alert():
-    # атака на час: неудача каждые 5 секунд → 720 событий, но один алерт
+    # hour-long attack: a failure every 5 seconds → 720 events, but one alert
     events = [ev(i * 5) for i in range(720)]
     alerts = detect(events, DetectionConfig(window=60, threshold=5, cooldown=900))
     assert rules(alerts) == ["bruteforce"]
@@ -158,7 +158,7 @@ def test_expire_returns_grown_alerts_for_summary_and_gc():
     d = Detector(DetectionConfig(window=60, threshold=5, cooldown=900))
     for i in range(20):
         d.process(ev(i))
-    assert d.expire(T0 + timedelta(seconds=100)) == []  # ещё в cooldown
+    assert d.expire(T0 + timedelta(seconds=100)) == []  # still in cooldown
     finished = d.expire(T0 + timedelta(hours=3))
     assert [a.count for a in finished] == [20]
     assert not d.active and not d.fail_window and not d.fail_history
@@ -171,12 +171,12 @@ def test_process_returns_only_new_alerts():
     assert len(d.alerts) == 1
 
 
-# --- шаг 10: allowlist ------------------------------------------------------------------------
+# --- step 10: allowlist ------------------------------------------------------------------------
 
 
 def test_allowlist_suppresses_ci_runner(load):
     events = load("auth_ci_runner.log")
-    assert rules(detect(events, CFG)) == ["bruteforce"]  # без allowlist — false positive
+    assert rules(detect(events, CFG)) == ["bruteforce"]  # without the allowlist: false positive
     d = Detector(CFG, Allowlist(["10.0.5.0/24"]))
     assert d.run(events) == []
     assert d.allowlisted == len(events)

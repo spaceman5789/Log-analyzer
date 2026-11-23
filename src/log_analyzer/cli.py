@@ -38,13 +38,13 @@ from log_analyzer.sources import (
 log = logging.getLogger("log_analyzer")
 
 
-# --- аргументы ---------------------------------------------------------------------
+# --- arguments ---------------------------------------------------------------------
 
 
 def positive_int(value: str) -> int:
     n = int(value)
     if n <= 0:
-        raise argparse.ArgumentTypeError("должно быть > 0")
+        raise argparse.ArgumentTypeError("must be > 0")
     return n
 
 
@@ -58,58 +58,58 @@ def severity(value: str) -> Severity:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="log-analyzer",
-        description="Детектор SSH brute force / password spraying по auth.log и journald.",
+        description="SSH brute force / password spraying detector for auth.log and journald.",
     )
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    p.add_argument("-v", "--verbose", action="count", default=0, help="подробные логи утилиты")
+    p.add_argument("-v", "--verbose", action="count", default=0, help="verbose tool logging")
     sub = p.add_subparsers(dest="command", required=True)
 
     common = argparse.ArgumentParser(add_help=False)
-    g = common.add_argument_group("детект")
-    g.add_argument("-c", "--config", help="YAML-конфиг (см. config.example.yaml)")
-    g.add_argument("--window", type=positive_int, help="окно брутфорса, секунд (60)")
-    g.add_argument("--threshold", type=positive_int, help="неудач в окне для алерта (5)")
-    g.add_argument("--cooldown", type=positive_int, help="пауза дедупликации, секунд (900)")
+    g = common.add_argument_group("detection")
+    g.add_argument("-c", "--config", help="YAML config (see config.example.yaml)")
+    g.add_argument("--window", type=positive_int, help="brute-force window, seconds (60)")
+    g.add_argument("--threshold", type=positive_int, help="failures within the window to alert (5)")
+    g.add_argument("--cooldown", type=positive_int, help="deduplication gap, seconds (900)")
     g.add_argument(
-        "--allow", action="append", default=[], metavar="CIDR", help="добавить в allowlist"
+        "--allow", action="append", default=[], metavar="CIDR", help="add to the allowlist"
     )
-    g = common.add_argument_group("ввод")
-    g.add_argument("--journal", action="store_true", help="читать journald через journalctl")
+    g = common.add_argument_group("input")
+    g.add_argument("--journal", action="store_true", help="read journald via journalctl")
     g.add_argument(
-        "--unit", action="append", help="systemd-юнит для --journal (по умолчанию ssh и sshd)"
+        "--unit", action="append", help="systemd unit for --journal (default: ssh and sshd)"
     )
     g.add_argument("--input-format", choices=["auto", "syslog", "journal"], default="auto")
-    g.add_argument("--year", type=int, help="год для syslog-строк без года")
-    g = common.add_argument_group("вывод")
+    g.add_argument("--year", type=int, help="year for syslog lines without a year")
+    g = common.add_argument_group("output")
     g.add_argument("--format", choices=["text", "json"], default="text")
     g.add_argument("--no-color", action="store_true")
-    g.add_argument("--telegram", action="store_true", help="слать алерты в Telegram")
-    g.add_argument("--min-severity", type=severity, help="минимальный уровень для Telegram")
-    g.add_argument("--env-file", default=".env", help="файл с TG_BOT_TOKEN / TG_CHAT_ID")
+    g.add_argument("--telegram", action="store_true", help="send alerts to Telegram")
+    g.add_argument("--min-severity", type=severity, help="minimum severity for Telegram")
+    g.add_argument("--env-file", default=".env", help="file with TG_BOT_TOKEN / TG_CHAT_ID")
 
-    a = sub.add_parser("analyze", parents=[common], help="разобрать файл(ы) и выдать отчёт")
+    a = sub.add_parser("analyze", parents=[common], help="analyze log file(s) and print a report")
     a.add_argument("paths", nargs="*", help="auth.log, auth.log.1, auth.log.2.gz, '-' = stdin")
-    a.add_argument("--since", help="для --journal: например '1 hour ago'")
-    a.add_argument("--top", type=positive_int, default=5, help="размер топов в отчёте")
+    a.add_argument("--since", help="for --journal: e.g. '1 hour ago'")
+    a.add_argument("--top", type=positive_int, default=5, help="size of top lists in the report")
     a.add_argument(
         "--fail-on",
         type=severity,
-        help="код выхода 1, если есть алерт этого уровня и выше (для cron/CI)",
+        help="exit code 1 if there is an alert at this level or above (for cron/CI)",
     )
 
-    w = sub.add_parser("watch", parents=[common], help="следить за логом в реальном времени")
-    w.add_argument("path", nargs="?", help="файл лога (или --journal)")
-    w.add_argument("--from-start", action="store_true", help="сначала прочитать файл целиком")
-    w.add_argument("--interval", type=float, default=0.5, help="период опроса файла, с")
+    w = sub.add_parser("watch", parents=[common], help="watch a log in real time")
+    w.add_argument("path", nargs="?", help="log file (or --journal)")
+    w.add_argument("--from-start", action="store_true", help="read the whole file first")
+    w.add_argument("--interval", type=float, default=0.5, help="file polling interval, s")
 
-    gen = sub.add_parser("generate", help="сгенерировать демо-лог с атаками")
-    gen.add_argument("-o", "--output", default="-", help="куда писать (по умолчанию stdout)")
+    gen = sub.add_parser("generate", help="generate a demo log with attacks")
+    gen.add_argument("-o", "--output", default="-", help="output file (default: stdout)")
     gen.add_argument("--seed", type=int, default=42)
-    gen.add_argument("--start", help="начало лога, ISO 8601 (по умолчанию сегодня 03:00)")
+    gen.add_argument("--start", help="log start time, ISO 8601 (default: today 03:00)")
     return p
 
 
-# --- общая подготовка -----------------------------------------------------------------
+# --- common setup ---------------------------------------------------------------------
 
 
 @dataclasses.dataclass
@@ -160,7 +160,7 @@ def send_alerts(
     max_alerts: int,
     pause: float = 1.0,
 ) -> int:
-    """Отправить алерты >= min_severity, не больше max_alerts (остальное — одной сводкой)."""
+    """Send alerts >= min_severity, at most max_alerts (the rest as one summary)."""
     eligible = [a for a in sort_alerts(alerts) if a.severity >= min_severity]
     sent = 0
     for a in eligible[:max_alerts]:
@@ -168,18 +168,18 @@ def send_alerts(
             notifier.send_alert(a)
             sent += 1
         except AlertingError as e:
-            log.error("не удалось отправить алерт в Telegram: %s", e)
+            log.error("failed to send alert to Telegram: %s", e)
         if pause:
-            time.sleep(pause)  # Telegram ограничивает ~1 сообщение в секунду на чат
+            time.sleep(pause)  # Telegram allows ~1 message per second per chat
     rest = len(eligible) - max_alerts
     if rest > 0:
         try:
             notifier.send_text(
-                f"… и ещё <b>{rest}</b> алертов уровня ≥ {min_severity.name}. "
-                "Полный отчёт: <code>log-analyzer analyze --format json</code>"
+                f"… and <b>{rest}</b> more alerts at level ≥ {min_severity.name}. "
+                "Full report: <code>log-analyzer analyze --format json</code>"
             )
         except AlertingError as e:
-            log.error("не удалось отправить сводку в Telegram: %s", e)
+            log.error("failed to send summary to Telegram: %s", e)
     return sent
 
 
@@ -188,7 +188,7 @@ def read_events(args: argparse.Namespace) -> list[Event]:
     if args.journal:
         return list(iter_events(read_journal(units, args.since), "journal", args.year))
     if not args.paths:
-        raise SourceError("укажите путь к логу (например /var/log/auth.log) или --journal")
+        raise SourceError("specify a log path (e.g. /var/log/auth.log) or --journal")
     events: list[Event] = []
     for path in args.paths:
         events.extend(parse_file(path, args.input_format, args.year))
@@ -196,7 +196,7 @@ def read_events(args: argparse.Namespace) -> list[Event]:
     return events
 
 
-# --- команды -----------------------------------------------------------------------------
+# --- commands ----------------------------------------------------------------------------
 
 
 def cmd_analyze(args: argparse.Namespace) -> int:
@@ -224,7 +224,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
 def _emit(rt: Runtime, alert: Alert, fmt: str, summary: bool = False) -> None:
     if summary:
-        alert = dataclasses.replace(alert, title=f"Сводка: {alert.title} (атака стихла)")
+        alert = dataclasses.replace(alert, title=f"Summary: {alert.title} (attack stopped)")
     if fmt == "json":
         doc = alert.to_dict() | {"event": "summary" if summary else "alert"}
         print(json.dumps(doc, ensure_ascii=False), flush=True)
@@ -234,7 +234,7 @@ def _emit(rt: Runtime, alert: Alert, fmt: str, summary: bool = False) -> None:
         try:
             rt.notifier.send_alert(alert)
         except AlertingError as e:
-            log.error("не удалось отправить алерт в Telegram: %s", e)
+            log.error("failed to send alert to Telegram: %s", e)
 
 
 def cmd_watch(args: argparse.Namespace) -> int:
@@ -245,29 +245,29 @@ def cmd_watch(args: argparse.Namespace) -> int:
         source = "journald"
     else:
         if not args.path:
-            raise SourceError("укажите путь к логу или --journal")
+            raise SourceError("specify a log path or --journal")
         fmt = args.input_format
         if fmt == "auto":
             fmt = "journal" if looks_like_journal(args.path) else "syslog"
         source = args.path
         if not os.path.exists(args.path):
-            raise SourceError(f"файл не найден: {args.path}")
+            raise SourceError(f"file not found: {args.path}")
         lines = follow_file(args.path, args.from_start, args.interval, heartbeat=True)
 
-    log.warning("слежу за %s (Ctrl+C для выхода)", source)
+    log.warning("watching %s (Ctrl+C to exit)", source)
     last_gc = time.monotonic()
     try:
         for line in lines:
             for event in parse_one(line, fmt, args.year):
                 for alert in rt.detector.process(event):
                     _emit(rt, rt.enricher.enrich(alert), args.format)
-            if time.monotonic() - last_gc > 30:  # раз в 30 с закрываем стихшие атаки
+            if time.monotonic() - last_gc > 30:  # every 30 s close attacks that have stopped
                 last_gc = time.monotonic()
                 for alert in rt.detector.expire(datetime.now()):
                     _emit(rt, rt.enricher.enrich(alert), args.format, summary=True)
     except KeyboardInterrupt:
         pass
-    log.warning("остановлено, алертов за сессию: %d", len(rt.detector.alerts))
+    log.warning("stopped, alerts this session: %d", len(rt.detector.alerts))
     return 0
 
 
@@ -287,12 +287,12 @@ def cmd_generate(args: argparse.Namespace) -> int:
         with open(args.output, "w", encoding="utf-8") as f:
             for line in lines:
                 f.write(line + "\n")
-        log.warning("демо-лог записан в %s", args.output)
+        log.warning("demo log written to %s", args.output)
     return 0
 
 
 def fail(message: str) -> int:
-    print(f"log-analyzer: ошибка: {message}", file=sys.stderr)
+    print(f"log-analyzer: error: {message}", file=sys.stderr)
     return 2
 
 
@@ -309,9 +309,9 @@ def main(argv: list[str] | None = None) -> int:
     except (ConfigError, AlertingError, SourceError) as e:
         return fail(str(e))
     except FileNotFoundError as e:
-        return fail(f"файл не найден: {e.filename}")
+        return fail(f"file not found: {e.filename}")
     except PermissionError as e:
-        return fail(f"нет прав на чтение {e.filename} (нужна группа adm или sudo)")
+        return fail(f"permission denied reading {e.filename} (need the adm group or sudo)")
     except BrokenPipeError:  # log-analyzer analyze ... | head
         return 0
 
