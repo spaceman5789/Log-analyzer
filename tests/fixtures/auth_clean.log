@@ -1,0 +1,11 @@
+Nov 12 08:00:01 srv sshd[2001]: Accepted publickey for denis from 192.0.2.10 port 50022 ssh2
+Nov 12 08:00:01 srv sshd[2001]: pam_unix(sshd:session): session opened for user denis(uid=1000) by (uid=0)
+Nov 12 08:10:00 srv CRON[2100]: pam_unix(cron:session): session opened for user root(uid=0) by (uid=0)
+Nov 12 09:15:20 srv sshd[2201]: Failed password for denis from 192.0.2.11 port 50100 ssh2
+Nov 12 09:15:26 srv sshd[2201]: Failed password for denis from 192.0.2.11 port 50100 ssh2
+Nov 12 09:15:31 srv sshd[2201]: Accepted password for denis from 192.0.2.11 port 50100 ssh2
+Nov 12 10:02:11 srv sshd[2301]: Failed publickey for deploy from 192.0.2.20 port 41000 ssh2: RSA SHA256:abc
+Nov 12 10:02:11 srv sshd[2301]: Failed publickey for deploy from 192.0.2.20 port 41000 ssh2: ED25519 SHA256:def
+Nov 12 10:02:12 srv sshd[2301]: Accepted publickey for deploy from 192.0.2.20 port 41000 ssh2: ED25519 SHA256:xyz
+Nov 12 11:40:00 srv sshd[2401]: Connection closed by 198.51.100.90 port 33333 [preauth]
+Nov 12 12:00:00 srv sshd[2501]: Received disconnect from 192.0.2.10 port 50022:11: disconnected by user

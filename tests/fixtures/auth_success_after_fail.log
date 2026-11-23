@@ -1,0 +1,10 @@
+Nov 12 03:11:02 srv sshd[1200]: Failed password for root from 203.0.113.5 port 52100 ssh2
+Nov 12 03:11:05 srv sshd[1201]: Failed password for root from 203.0.113.5 port 52101 ssh2
+Nov 12 03:11:08 srv sshd[1202]: Failed password for root from 203.0.113.5 port 52102 ssh2
+Nov 12 03:11:11 srv sshd[1203]: Failed password for root from 203.0.113.5 port 52103 ssh2
+Nov 12 03:11:14 srv sshd[1204]: Failed password for root from 203.0.113.5 port 52104 ssh2
+Nov 12 03:11:17 srv sshd[1205]: Failed password for root from 203.0.113.5 port 52105 ssh2
+Nov 12 03:11:20 srv sshd[1206]: Failed password for root from 203.0.113.5 port 52106 ssh2
+Nov 12 03:11:23 srv sshd[1207]: Failed password for root from 203.0.113.5 port 52107 ssh2
+Nov 12 03:11:30 srv sshd[1300]: Accepted password for root from 203.0.113.5 port 52200 ssh2
+Nov 12 03:15:00 srv sshd[1401]: Accepted publickey for denis from 192.0.2.10 port 50022 ssh2

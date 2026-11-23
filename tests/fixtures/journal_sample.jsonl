@@ -1,0 +1,8 @@
+{"__REALTIME_TIMESTAMP": "1794453062000000", "_HOSTNAME": "srv", "SYSLOG_IDENTIFIER": "sshd", "_PID": "1200", "MESSAGE": "Failed password for root from 203.0.113.5 port 52101 ssh2"}
+{"__REALTIME_TIMESTAMP": "1794453064000000", "_HOSTNAME": "srv", "SYSLOG_IDENTIFIER": "sshd", "_PID": "1201", "MESSAGE": "Failed password for root from 203.0.113.5 port 52101 ssh2"}
+{"__REALTIME_TIMESTAMP": "1794453066000000", "_HOSTNAME": "srv", "SYSLOG_IDENTIFIER": "sshd", "_PID": "1202", "MESSAGE": "Failed password for root from 203.0.113.5 port 52101 ssh2"}
+{"__REALTIME_TIMESTAMP": "1794453068000000", "_HOSTNAME": "srv", "SYSLOG_IDENTIFIER": "sshd", "_PID": "1203", "MESSAGE": "Failed password for root from 203.0.113.5 port 52101 ssh2"}
+{"__REALTIME_TIMESTAMP": "1794453070000000", "_HOSTNAME": "srv", "SYSLOG_IDENTIFIER": "sshd", "_PID": "1204", "MESSAGE": "Failed password for root from 203.0.113.5 port 52101 ssh2"}
+{"__REALTIME_TIMESTAMP": "1794453072000000", "_HOSTNAME": "srv", "SYSLOG_IDENTIFIER": "sshd", "_PID": "1205", "MESSAGE": "Failed password for root from 203.0.113.5 port 52101 ssh2"}
+{"__REALTIME_TIMESTAMP": "1794453074000000", "_HOSTNAME": "srv", "SYSLOG_IDENTIFIER": "sshd", "_PID": "1206", "MESSAGE": "Accepted password for root from 203.0.113.5 port 52107 ssh2"}
+{"__REALTIME_TIMESTAMP": "1794453076000000", "_HOSTNAME": "srv", "SYSLOG_IDENTIFIER": "CRON", "_PID": "1207", "MESSAGE": "pam_unix(cron:session): session opened for user root"}

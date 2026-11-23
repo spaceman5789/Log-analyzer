@@ -1,0 +1,44 @@
+# Пример конфига log-analyzer. Скопируйте в config.yaml и поправьте под себя:
+#   log-analyzer analyze /var/log/auth.log -c config.yaml
+# Флаги CLI (--window, --threshold, --cooldown, --allow) имеют приоритет над конфигом.
+
+detection:
+  # Брутфорс: >= threshold неудачных паролей с одного IP за window секунд
+  # (аналог maxretry / findtime в fail2ban)
+  window: 60
+  threshold: 5
+  # Успешный вход с IP, где за последние success_lookback секунд было >= threshold неудач → CRITICAL
+  success_lookback: 3600
+  # Password spraying (T1110.003): >= spray_users разных логинов с одного IP за spray_window
+  spray_window: 3600
+  spray_users: 5
+  # Распределённая атака: >= distributed_ips разных IP на один логин за distributed_window
+  distributed_window: 600
+  distributed_ips: 5
+  # Сканеры (LOW): >= scan_threshold обрывов [preauth] / Invalid user с IP за window
+  scan_threshold: 10
+  # Дедупликация: атака без пауз дольше cooldown — один алерт, а не 700 сообщений
+  cooldown: 900
+  # Перебор этих логинов поднимает severity брутфорса до HIGH
+  privileged_users: [root]
+
+# Доверенные IP и подсети — от них алертов не будет (борьба с false positive).
+allowlist:
+  - 192.0.2.10/32     # рабочая машина админа
+  - 10.0.5.0/24       # CI-раннеры (один стучится с битым ключом каждые 10 секунд)
+  - 127.0.0.1
+  - ::1
+
+telegram:
+  # В Telegram шлём только важное, остальное видно в отчёте
+  min_severity: HIGH
+  # Если за один analyze набралось больше — остальные одной сводкой
+  max_alerts: 10
+  timeout: 10
+
+enrichment:
+  # Страна IP: скачайте GeoLite2-Country.mmdb с maxmind.com и pip install '.[geoip]'
+  geoip_db: null
+  # Публичные blocklist'ы (IP/CIDR по строке), например FireHOL level1:
+  # curl -o firehol_level1.netset https://iplists.firehol.org/files/firehol_level1.netset
+  blocklists: []

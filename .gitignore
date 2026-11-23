@@ -1,7 +1,26 @@
-git clone git@github.com:spaceman5789/log-analyzer.git
-cd log-analyzer
-python3 -m venv .venv
-source .venv/bin/activate
-pip install pytest
-mkdir -p src/log_analyzer tests/fixtures
-touch src/log_analyzer/__init__.py
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Инструменты
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Секреты — никогда не коммитим (токен Telegram и т.п.)
+.env
+.env.*
+!.env.example
+
+# Локальные данные: реальные логи, конфиг, GeoIP-базы, blocklist'ы
+/*.log
+/*.log.*
+/config.yaml
+*.mmdb
+*.netset
